@@ -7,14 +7,18 @@ public class MitgliederDB implements Iterable<Record>
 {
 	
 	protected DBBlock db[] = new DBBlock[8];
+	private final boolean ordered;
 	
 	
 	public MitgliederDB(boolean ordered){
-		this();
+		
+		this.ordered = ordered;
+		initDB();
 		insertMitgliederIntoDB(ordered);
 		
 	}
 	public MitgliederDB(){
+		this.ordered = false;
 		initDB();
 	}
 	
@@ -24,6 +28,22 @@ public class MitgliederDB implements Iterable<Record>
 		}
 		
 	}
+
+	private java.util.List<Record> toList()
+	{
+		// Gibt alle Records der Datenbank in ihrer aktuellen Reihenfolge zurück
+		java.util.ArrayList<Record> list = new java.util.ArrayList<>();
+		for(Record r : this) list.add(r);
+		return list;
+	}
+
+	private void rebuild(java.util.List<Record> list)
+	{
+		//Baut die gesamte Datenbank aus der übergebenen Liste neu auf
+		initDB();
+		for(Record r : list) appendRecord(r);
+	}
+
 	private void insertMitgliederIntoDB(boolean ordered) {
 		MitgliederTableAsArray mitglieder = new MitgliederTableAsArray();
 		String mitgliederDatasets[];
@@ -102,8 +122,22 @@ public class MitgliederDB implements Iterable<Record>
 	 * @return the record matching the search term
 	 */
 	public Record read(int recNum){
-		//TODO implement
-		return null;
+
+		//Gültigkeit der Eingabe prÜfen
+		if( recNum < 1 || recNum > getNumberOfRecords()) return  null;
+		
+		//Bestimmen der Blocknummer des gesuchten Records
+		int blockNum = getBlockNumOfRecord(recNum);
+		if (blockNum == -1) return null;
+
+	    //Bestimmen der Position des gesuchten Records im Block
+		int prefix = 0;
+		for (int i = 0; i < blockNum; i++) prefix += db[i].getNumberOfRecords();
+
+	    int posInBlock = recNum - prefix;
+
+		// Rückgabe des gesuchten Records
+		return db[blockNum].getRecord(posInBlock);
 	}
 	
 	/**
@@ -112,8 +146,21 @@ public class MitgliederDB implements Iterable<Record>
 	 * @return the number of the record in the DB -1 if not found
 	 */
 	public int findPos(String searchTerm){
-		//TODO implement
-		return -1;
+
+		int pos = 1;
+
+		for (Record r : this)
+		{
+			//Vergleich des ersten Attributes mit dem searchTerm
+			String id = r.getAttribute(1);
+			if (id.equals(searchTerm))
+			{
+				return pos; //Datensatz gefunden
+			}
+			pos++;
+		}
+
+		return -1; //Kein pasender Datensatz gefunden
 	}
 	
 	/**
@@ -122,8 +169,37 @@ public class MitgliederDB implements Iterable<Record>
 	 * @return the record number of the inserted record
 	 */
 	public int insert(Record record){
-		//TODO implement
-		return -1;
+
+		//Unordered-Weg
+		if (!ordered)
+		{
+			int newPos = getNumberOfRecords() + 1;
+			appendRecord(record);
+			return newPos;
+		}
+
+		//Sorted-Weg
+		java.util.List<Record> list = toList();
+
+		// Mitgliedsnummer des neuen Datensatzes bestimmen
+		int newId = Integer.parseInt(record.getAttribute(1));
+
+		//Position zum Einfügen des neuen Datensatzues bestimmen
+		int idx = 0;
+		while (idx < list.size())
+		{
+			int currId = Integer.parseInt(list.get(idx).getAttribute(1));
+			if (newId < currId) break;
+			idx++;
+		}
+
+		//Neuen Datensatz an gefundener Stelle einfügen
+		list.add(idx, record);
+		
+		//Datenbank mit neuem Datensatz wieder aufbauen
+		rebuild(list);
+
+		return idx + 1;
 	}
 	
 	/**
@@ -131,7 +207,20 @@ public class MitgliederDB implements Iterable<Record>
 	 * @param numRecord number of the record to be deleted
 	 */
 	public void delete(int numRecord){
-		//TODO implement
+		
+		//Eingabe prüfen
+		int total = getNumberOfRecords();
+		if (numRecord < 1 || numRecord >  total) return;
+
+		//Liste aller Datensätze erstellen
+		java.util.List<Record> list = toList();
+
+		//Löschen des gegebenen Datensatzes aus der Liste
+		list.remove(numRecord - 1);
+
+		//Neuaufbau der Datenbank
+		rebuild(list);
+
 	}
 	
 	/**
@@ -141,7 +230,40 @@ public class MitgliederDB implements Iterable<Record>
 	 * 
 	 */
 	public void modify(int numRecord, Record record){
-		//TODO
+		
+		//Eingabe prüfen
+		int total = getNumberOfRecords();
+		if (numRecord < 1 || numRecord > total) return;
+
+		//Liste aller Datensätze erstelln
+		java.util.List<Record> list = toList();
+
+		//Unordered-Weg
+		if(!ordered)
+		{
+			list.set(numRecord - 1, record);
+			rebuild(list);
+			return;
+		}
+
+		//Sorted-Weg
+		//Alten Eintrag entfernen
+		list.remove(numRecord - 1);
+
+		//Neue Mitgliedsnummer bestimmen
+		int newId = Integer.parseInt(record.getAttribute(1));
+
+		//Einfügeposition des neuen Datensatzes bestimmen
+		int idx = 0;
+		while (idx < list.size())
+		{
+			int currId = Integer.parseInt(list.get(idx).getAttribute(1));
+			if (newId < currId) break;
+			idx++;
+		}
+
+		list.add(idx, record);
+		rebuild(list);
 	}
 
 	

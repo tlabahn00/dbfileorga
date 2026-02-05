@@ -28,6 +28,7 @@ public class StartMitgliederDBOrdered {
 			//delete the record with Mitgliedsnummer 97 (97;1;65;Krapp;Theo;10.10.87;01.03.07;115;25) 
 			db.delete(db.findPos("97"));
 			System.out.println(db);
+
 			
 			
 	}

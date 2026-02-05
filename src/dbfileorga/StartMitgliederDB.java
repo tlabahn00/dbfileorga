@@ -28,7 +28,6 @@ public class StartMitgliederDB {
 			db.delete(db.findPos("95"));
 			System.out.println(db);
 			
-			
 	}
 
 }
